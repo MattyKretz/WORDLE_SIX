@@ -2,21 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Allow zooming and responsive height -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=1">
   <title>Wordle Clone (6 Letters)</title>
   <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background-color: #121213;
+      color: #d7dadc;
+      font-family: Arial, sans-serif;
+    }
     body {
       display: flex;
       flex-direction: row;
       align-items: flex-start;
       justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #121213;
-      color: #d7dadc;
-      padding: 20px;
       box-sizing: border-box;
+      padding: 20px;
     }
     @media (max-width: 600px) {
       body {
@@ -34,18 +40,24 @@
       flex-direction: column;
       align-items: center;
       position: relative;
+      width: 100%;
+      max-width: 600px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      /* Ensure padding so bottom rows are visible above keyboard */
+      padding-bottom: 200px;
     }
 
     #game {
       display: grid;
-      grid-template-rows: repeat(6, 1fr);
+      grid-template-rows: repeat(6, auto);
       grid-gap: 5px;
       visibility: hidden;
     }
 
     .row {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(6, auto);
       grid-gap: 5px;
     }
 
@@ -65,7 +77,10 @@
     .cell.present { background-color: #c9b458; color: #fff; border: none; }
     .cell.absent { background-color: #3a3a3c; color: #fff; border: none; }
 
-    #loading { font-size: 1rem; margin-bottom: 1rem; }
+    #loading {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
 
     /* Tracker sidebar */
     #tracker {
@@ -75,6 +90,7 @@
       border-radius: 4px;
       background-color: #1e1e1e;
       min-width: 120px;
+      height: fit-content;
     }
     #tracker h2 { margin-top: 0; font-size: 1.2rem; }
     #tracker p { margin: 8px 0; font-size: 1rem; }
@@ -138,15 +154,11 @@
       gameEl.style.visibility = 'visible';
       buildGrid();
       setupNewRound();
-      // Focus hidden input for mobile
       inputEl.focus();
       inputEl.addEventListener('input', onInput);
       inputEl.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === 'Backspace') {
-          handleKey(e);
-        }
+        if (e.key === 'Enter' || e.key === 'Backspace') handleKey(e);
       });
-      // Keep focus on input
       document.body.addEventListener('click', () => inputEl.focus());
     }
 
@@ -174,9 +186,7 @@
 
     function onInput(e) {
       const char = e.data ? e.data.toUpperCase() : '';
-      if (/^[A-Z]$/.test(char)) {
-        handleKey({ key: char });
-      }
+      if (/^[A-Z]$/.test(char)) handleKey({ key: char });
       inputEl.value = '';
     }
 
