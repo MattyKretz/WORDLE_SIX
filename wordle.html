@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordle Clone (6 Letters)</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121213;
+      color: #d7dadc;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #game {
+      display: grid;
+      grid-template-rows: repeat(6, 1fr);
+      grid-gap: 5px;
+      visibility: hidden; /* Hide until words load */
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-gap: 5px;
+    }
+
+    .cell {
+      width: 60px;
+      height: 60px;
+      border: 2px solid #3a3a3c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      text-transform: uppercase;
+    }
+
+    .cell.filled { border-color: #565758; }
+    .cell.correct { background-color: #6aaa64; color: #fff; border: none; }
+    .cell.present { background-color: #c9b458; color: #fff; border: none; }
+    .cell.absent { background-color: #3a3a3c; color: #fff; border: none; }
+
+    #loading { font-size: 1rem; margin-bottom: 1rem; }
+
+    /* Tracker sidebar */
+    #tracker {
+      margin-left: 40px;
+      padding: 10px;
+      border: 1px solid #3a3a3c;
+      border-radius: 4px;
+      background-color: #1e1e1e;
+      min-width: 120px;
+    }
+    #tracker h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      color: #d7dadc;
+    }
+    #tracker p {
+      margin: 8px 0;
+      font-size: 1rem;
+    }
+    #tracker span {
+      font-weight: bold;
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <h1>Wordle Clone (6 Letters)</h1>
+    <div id="loading">Loading dictionary, please wait...</div>
+    <div id="game"></div>
+  </div>
+
+  <div id="tracker">
+    <h2>Session Stats</h2>
+    <p>Wins: <span id="wins">0</span></p>
+    <p>Losses: <span id="losses">0</span></p>
+  </div>
+
+  <script>
+    const DICT_URL = 'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt';
+    const gameEl = document.getElementById('game');
+    const loadingEl = document.getElementById('loading');
+    const winsEl = document.getElementById('wins');
+    const lossesEl = document.getElementById('losses');
+
+    let WORDS = [];
+    let ANSWER = '';
+    let currentRow = 0;
+    let currentCol = 0;
+    let wins = 0;
+    let losses = 0;
+
+    fetch(DICT_URL)
+      .then(res => res.text())
+      .then(text => {
+        WORDS = text.split(/\r?\n/)
+          .map(w => w.trim().toUpperCase())
+          .filter(w => /^[A-Z]{6}$/.test(w));
+        console.log(`Loaded ${WORDS.length} six-letter words from dictionary`);
+        initGame();
+      })
+      .catch(err => {
+        loadingEl.textContent = 'Failed to load dictionary.';
+        console.error(err);
+      });
+
+    function initGame() {
+      loadingEl.remove();
+      gameEl.style.visibility = 'visible';
+      setupNewRound();
+      // Build grid once
+      for (let i = 0; i < 6; i++) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        for (let j = 0; j < 6; j++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          row.appendChild(cell);
+        }
+        gameEl.appendChild(row);
+      }
+      document.addEventListener('keydown', handleKey);
+    }
+
+    function setupNewRound() {
+      ANSWER = WORDS[Math.floor(Math.random() * WORDS.length)];
+      currentRow = 0;
+      currentCol = 0;
+      // clear any existing grid letters
+      Array.from(gameEl.children).forEach(rowEl => {
+        Array.from(rowEl.children).forEach(cell => {
+          cell.textContent = '';
+          cell.className = 'cell';
+        });
+      });
+      console.log('New answer:', ANSWER);
+    }
+
+    function handleKey(e) {
+      if (currentRow >= 6) return;
+      const rowEl = gameEl.children[currentRow];
+      if (/^[a-z]$/i.test(e.key)) {
+        if (currentCol < 6) {
+          const cell = rowEl.children[currentCol++];
+          cell.textContent = e.key.toUpperCase();
+          cell.classList.add('filled');
+        }
+      } else if (e.key === 'Backspace') {
+        if (currentCol > 0) {
+          const cell = rowEl.children[--currentCol];
+          cell.textContent = '';
+          cell.classList.remove('filled');
+        }
+      } else if (e.key === 'Enter' && currentCol === 6) {
+        const guess = Array.from(rowEl.children).map(c => c.textContent).join('');
+        if (!WORDS.includes(guess)) {
+          alert('Not in dictionary');
+          return;
+        }
+        evaluate(rowEl, guess);
+      }
+    }
+
+    function evaluate(rowEl, guess) {
+      const answerArr = ANSWER.split('');
+      const guessArr = guess.split('');
+      const counts = {};
+      answerArr.forEach(l => counts[l] = (counts[l] || 0) + 1);
+      // correct
+      guessArr.forEach((l, i) => {
+        if (l === answerArr[i]) {
+          rowEl.children[i].classList.add('correct'); counts[l]--;
+        }
+      });
+      // present/absent
+      guessArr.forEach((l, i) => {
+        const cell = rowEl.children[i];
+        if (cell.classList.contains('correct')) return;
+        if (counts[l] > 0) { cell.classList.add('present'); counts[l]--; }
+        else { cell.classList.add('absent'); }
+      });
+
+      if (guess === ANSWER) {
+        wins++;
+        winsEl.textContent = wins;
+        setTimeout(() => {
+          alert('Congratulations!');
+          setupNewRound();
+        }, 100);
+      } else {
+        currentRow++;
+        currentCol = 0;
+        if (currentRow === 6) {
+          losses++;
+          lossesEl.textContent = losses;
+          setTimeout(() => {
+            alert('Game over! The word was ' + ANSWER);
+            setupNewRound();
+          }, 100);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
