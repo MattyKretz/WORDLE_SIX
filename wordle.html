@@ -18,18 +18,29 @@
       padding: 20px;
       box-sizing: border-box;
     }
+    @media (max-width: 600px) {
+      body {
+        flex-direction: column;
+        align-items: center;
+      }
+      #tracker {
+        margin-left: 0;
+        margin-top: 20px;
+      }
+    }
 
     #game-container {
       display: flex;
       flex-direction: column;
       align-items: center;
+      position: relative;
     }
 
     #game {
       display: grid;
       grid-template-rows: repeat(6, 1fr);
       grid-gap: 5px;
-      visibility: hidden; /* Hide until words load */
+      visibility: hidden;
     }
 
     .row {
@@ -65,18 +76,18 @@
       background-color: #1e1e1e;
       min-width: 120px;
     }
-    #tracker h2 {
-      margin-top: 0;
-      font-size: 1.2rem;
-      color: #d7dadc;
-    }
-    #tracker p {
-      margin: 8px 0;
-      font-size: 1rem;
-    }
-    #tracker span {
-      font-weight: bold;
-      color: #ffffff;
+    #tracker h2 { margin-top: 0; font-size: 1.2rem; }
+    #tracker p { margin: 8px 0; font-size: 1rem; }
+    #tracker span { font-weight: bold; color: #ffffff; }
+
+    /* Hidden input to capture mobile keyboard */
+    #input-catcher {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+      top: 0;
+      left: 0;
     }
   </style>
 </head>
@@ -85,6 +96,7 @@
     <h1>Wordle Clone (6 Letters)</h1>
     <div id="loading">Loading dictionary, please wait...</div>
     <div id="game"></div>
+    <input id="input-catcher" type="text" maxlength="1" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
 
   <div id="tracker">
@@ -99,6 +111,7 @@
     const loadingEl = document.getElementById('loading');
     const winsEl = document.getElementById('wins');
     const lossesEl = document.getElementById('losses');
+    const inputEl = document.getElementById('input-catcher');
 
     let WORDS = [];
     let ANSWER = '';
@@ -113,7 +126,6 @@
         WORDS = text.split(/\r?\n/)
           .map(w => w.trim().toUpperCase())
           .filter(w => /^[A-Z]{6}$/.test(w));
-        console.log(`Loaded ${WORDS.length} six-letter words from dictionary`);
         initGame();
       })
       .catch(err => {
@@ -124,42 +136,57 @@
     function initGame() {
       loadingEl.remove();
       gameEl.style.visibility = 'visible';
+      buildGrid();
       setupNewRound();
-      // Build grid once
+      // Focus hidden input for mobile
+      inputEl.focus();
+      inputEl.addEventListener('input', onInput);
+      inputEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === 'Backspace') {
+          handleKey(e);
+        }
+      });
+      // Keep focus on input
+      document.body.addEventListener('click', () => inputEl.focus());
+    }
+
+    function buildGrid() {
       for (let i = 0; i < 6; i++) {
-        const row = document.createElement('div');
-        row.className = 'row';
+        const row = document.createElement('div'); row.className = 'row';
         for (let j = 0; j < 6; j++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
+          const cell = document.createElement('div'); cell.className = 'cell';
           row.appendChild(cell);
         }
         gameEl.appendChild(row);
       }
-      document.addEventListener('keydown', handleKey);
     }
 
     function setupNewRound() {
       ANSWER = WORDS[Math.floor(Math.random() * WORDS.length)];
-      currentRow = 0;
-      currentCol = 0;
-      // clear any existing grid letters
+      currentRow = 0; currentCol = 0;
       Array.from(gameEl.children).forEach(rowEl => {
         Array.from(rowEl.children).forEach(cell => {
           cell.textContent = '';
           cell.className = 'cell';
         });
       });
-      console.log('New answer:', ANSWER);
+    }
+
+    function onInput(e) {
+      const char = e.data ? e.data.toUpperCase() : '';
+      if (/^[A-Z]$/.test(char)) {
+        handleKey({ key: char });
+      }
+      inputEl.value = '';
     }
 
     function handleKey(e) {
       if (currentRow >= 6) return;
       const rowEl = gameEl.children[currentRow];
-      if (/^[a-z]$/i.test(e.key)) {
+      if (/^[A-Z]$/.test(e.key)) {
         if (currentCol < 6) {
           const cell = rowEl.children[currentCol++];
-          cell.textContent = e.key.toUpperCase();
+          cell.textContent = e.key;
           cell.classList.add('filled');
         }
       } else if (e.key === 'Backspace') {
@@ -170,50 +197,32 @@
         }
       } else if (e.key === 'Enter' && currentCol === 6) {
         const guess = Array.from(rowEl.children).map(c => c.textContent).join('');
-        if (!WORDS.includes(guess)) {
-          alert('Not in dictionary');
-          return;
-        }
+        if (!WORDS.includes(guess)) { alert('Not in dictionary'); return; }
         evaluate(rowEl, guess);
       }
     }
 
     function evaluate(rowEl, guess) {
       const answerArr = ANSWER.split('');
-      const guessArr = guess.split('');
       const counts = {};
       answerArr.forEach(l => counts[l] = (counts[l] || 0) + 1);
-      // correct
-      guessArr.forEach((l, i) => {
-        if (l === answerArr[i]) {
-          rowEl.children[i].classList.add('correct'); counts[l]--;
-        }
+      guess.split('').forEach((l, i) => {
+        if (l === answerArr[i]) { rowEl.children[i].classList.add('correct'); counts[l]--; }
       });
-      // present/absent
-      guessArr.forEach((l, i) => {
+      guess.split('').forEach((l, i) => {
         const cell = rowEl.children[i];
         if (cell.classList.contains('correct')) return;
         if (counts[l] > 0) { cell.classList.add('present'); counts[l]--; }
         else { cell.classList.add('absent'); }
       });
-
       if (guess === ANSWER) {
-        wins++;
-        winsEl.textContent = wins;
-        setTimeout(() => {
-          alert('Congratulations!');
-          setupNewRound();
-        }, 100);
+        winsEl.textContent = ++wins;
+        setTimeout(() => { alert('Congratulations!'); setupNewRound(); }, 100);
       } else {
-        currentRow++;
-        currentCol = 0;
+        currentRow++; currentCol = 0;
         if (currentRow === 6) {
-          losses++;
-          lossesEl.textContent = losses;
-          setTimeout(() => {
-            alert('Game over! The word was ' + ANSWER);
-            setupNewRound();
-          }, 100);
+          lossesEl.textContent = ++losses;
+          setTimeout(() => { alert('Game over! The word was ' + ANSWER); setupNewRound(); }, 100);
         }
       }
     }
